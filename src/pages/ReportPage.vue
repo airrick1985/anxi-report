@@ -32,7 +32,7 @@
                 v-for="(url, idx) in [r.photo1, r.photo2, r.photo3, r.photo4]"
                 v-if="url"
                 :key="idx"
-                :src="transformDriveUrl(url)"
+                :src="url"
                 alt="缺失照片"
                 class="photo-thumb"
                 @click="zoomImage(url)"
@@ -40,7 +40,7 @@
                 @load="() => console.log('✅ 成功載入:', url)"
               />
             </div>
-            <pre style="font-size: 10px; color: #888;">{{ transformDriveUrl(r.photo1) }}</pre>
+            <pre v-if="r.photo1" style="font-size: 10px; color: #888;">{{ r.photo1 }}</pre>
           </td>
         </tr>
       </tbody>
@@ -73,16 +73,27 @@ const zoomDialog = ref(false);
 const zoomUrl = ref('');
 
 function zoomImage(url) {
-  zoomUrl.value = transformDriveUrl(url);
+  zoomUrl.value = url;
   zoomDialog.value = true;
 }
 
+// 此函數目前在此組件中未被直接用於圖片顯示，
+// 因為後端 API (get_shared_inspection_records) 已提供轉換後的 URL。
+// 保留它以防其他地方可能需要處理原始 Google Drive 分享連結。
 function transformDriveUrl(originalUrl) {
   if (!originalUrl) return '';
-  const fileMatch = originalUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-  const openMatch = originalUrl.match(/id=([a-zA-Z0-9_-]+)/);
-  const id = fileMatch?.[1] || openMatch?.[1];
-  return id ? `https://drive.google.com/uc?export=view&id=${id}` : '';
+  // 此正規表達式用於轉換 /file/d/FILE_ID/view?usp=sharing 格式的連結
+  const matchFileD = originalUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (matchFileD) {
+    return `https://drive.google.com/uc?export=view&id=${matchFileD[1]}`;
+  }
+  // 如果 URL 已經是 /uc?id=FILE_ID 格式，則直接返回
+  if (originalUrl.includes('/uc?export=view&id=') || originalUrl.includes('/uc?id=')) {
+    return originalUrl;
+  }
+  // 如果以上格式都不匹配，返回原始 URL 或空字串（視情況處理）
+  // 在此，如果不是已知的 Drive URL 格式，我們返回原始 URL，讓瀏覽器嘗試解析
+  return originalUrl;
 }
 
 
@@ -106,6 +117,9 @@ onMounted(async () => {
     const json = await res.json();
     if (json.status === 'success') {
       records.value = json.records || [];
+      if (records.value.length > 0 && records.value[0].photo1) {
+        console.log("API回傳的第一筆紀錄 photo1 URL:", records.value[0].photo1);
+      }
     } else {
       error.value = json.message || '讀取失敗';
     }
