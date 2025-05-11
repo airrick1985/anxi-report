@@ -30,17 +30,30 @@
           <td>{{ r.subcategory }}</td>
           <td>
             <div>{{ r.description }}</div>
-            <div v-if="r.photo1">
+            <div class="photo-row">
               <img
-                :src="transformDriveUrl(r.photo1)"
+                v-for="(url, idx) in [r.photo1, r.photo2, r.photo3, r.photo4]"
+                v-if="url"
+                :key="idx"
+                :src="transformDriveUrl(url)"
                 alt="缺失照片"
-                style="max-width: 150px; margin-top: 8px; border: 1px solid #ccc;"
+                class="photo-thumb"
+                @click="zoomImage(url)"
               />
             </div>
           </td>
         </tr>
       </tbody>
     </v-table>
+
+    <v-dialog v-model="zoomDialog" max-width="90vw">
+      <v-card>
+        <v-img :src="zoomUrl" max-height="80vh" contain />
+        <v-card-actions class="justify-end">
+          <v-btn text @click="zoomDialog = false">關閉</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -55,6 +68,19 @@ const token = route.query.t;
 const records = ref([]);
 const loading = ref(true);
 const error = ref('');
+
+const zoomDialog = ref(false);
+const zoomUrl = ref('');
+
+function zoomImage(url) {
+  zoomUrl.value = transformDriveUrl(url);
+  zoomDialog.value = true;
+}
+
+function transformDriveUrl(originalUrl) {
+  const match = originalUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  return match ? `https://drive.google.com/uc?export=view&id=${match[1]}` : '';
+}
 
 onMounted(async () => {
   if (!unitId || !token) {
@@ -85,11 +111,6 @@ onMounted(async () => {
     loading.value = false;
   }
 });
-
-function transformDriveUrl(originalUrl) {
-  const match = originalUrl.match(/\/d\/([a-zA-Z0-9_-]+)\//);
-  return match ? `https://drive.google.com/uc?export=view&id=${match[1]}` : '';
-}
 </script>
 
 <style scoped>
@@ -104,5 +125,19 @@ td {
   vertical-align: top;
   font-size: 14px;
   border-bottom: 1px solid #eee;
+}
+.photo-row {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.photo-thumb {
+  max-width: 120px;
+  max-height: 100px;
+  object-fit: contain;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: zoom-in;
 }
 </style>
