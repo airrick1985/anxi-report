@@ -2,17 +2,9 @@
   <v-container class="py-6">
     <h2 class="text-h5 mb-4">戶別：{{ unitId }}</h2>
 
-    <v-alert
-      v-if="error"
-      type="error"
-      class="mb-4"
-    >{{ error }}</v-alert>
+    <v-alert v-if="error" type="error" class="mb-4">{{ error }}</v-alert>
 
-    <v-progress-circular
-      v-if="loading"
-      indeterminate
-      color="primary"
-    />
+    <v-progress-circular v-if="loading" indeterminate color="primary" />
 
     <v-table v-else class="elevation-1">
       <thead>
@@ -23,7 +15,7 @@
           <th>區域</th>
           <th>分類</th>
           <th>細項</th>
-          <th>說明</th>
+          <th>說明與照片</th>
         </tr>
       </thead>
       <tbody>
@@ -34,10 +26,28 @@
           <td>{{ r.area }}</td>
           <td>{{ r.category }}</td>
           <td>{{ r.subcategory }}</td>
-          <td>{{ r.description }}</td>
+          <td>
+            <div>{{ r.description }}</div>
+            <div class="photo-row" v-if="r.photos && r.photos.length">
+              <img
+                v-for="(photo, idx) in r.photos"
+                :key="idx"
+                :src="photo"
+                @click="viewPhoto(photo)"
+                class="thumb"
+              />
+            </div>
+          </td>
         </tr>
       </tbody>
     </v-table>
+
+    <!-- 放大預覽 -->
+    <v-dialog v-model="zoomDialog" max-width="800">
+      <v-card>
+        <v-img :src="zoomPhoto" contain />
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -52,6 +62,13 @@ const token = route.query.t;
 const records = ref([]);
 const loading = ref(true);
 const error = ref('');
+const zoomDialog = ref(false);
+const zoomPhoto = ref('');
+
+function viewPhoto(url) {
+  zoomPhoto.value = url;
+  zoomDialog.value = true;
+}
 
 onMounted(async () => {
   if (!unitId || !token) {
@@ -72,7 +89,10 @@ onMounted(async () => {
     });
     const json = await res.json();
     if (json.status === 'success') {
-      records.value = json.records || [];
+      records.value = (json.records || []).map(r => ({
+        ...r,
+        photos: [r.photo1, r.photo2, r.photo3, r.photo4].filter(Boolean)
+      }));
     } else {
       error.value = json.message || '讀取失敗';
     }
@@ -96,5 +116,19 @@ td {
   vertical-align: top;
   font-size: 14px;
   border-bottom: 1px solid #eee;
+}
+.photo-row {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.thumb {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
 }
 </style>
