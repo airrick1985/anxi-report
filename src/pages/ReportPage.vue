@@ -2,10 +2,7 @@
   <v-container class="py-6">
     <h2 class="text-h5 mb-4">戶別：{{ unitId }}</h2>
 
-    <v-alert v-if="error" type="error" class="mb-4">
-      {{ error }}
-    </v-alert>
-
+    <v-alert v-if="error" type="error" class="mb-4">{{ error }}</v-alert>
     <v-progress-circular v-if="loading" indeterminate color="primary" />
 
     <v-table v-else class="elevation-1">
@@ -39,8 +36,11 @@
                 alt="缺失照片"
                 class="photo-thumb"
                 @click="zoomImage(url)"
+                @error="() => console.error('❌ 載入失敗:', url)"
+                @load="() => console.log('✅ 成功載入:', url)"
               />
             </div>
+            <pre style="font-size: 10px; color: #888;">{{ transformDriveUrl(r.photo1) }}</pre>
           </td>
         </tr>
       </tbody>
@@ -78,7 +78,8 @@ function zoomImage(url) {
 }
 
 function transformDriveUrl(originalUrl) {
-  const match = originalUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (!originalUrl) return '';
+  const match = originalUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
   return match ? `https://drive.google.com/uc?export=view&id=${match[1]}` : '';
 }
 
