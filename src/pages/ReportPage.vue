@@ -2,17 +2,11 @@
   <v-container class="py-6">
     <h2 class="text-h5 mb-4">戶別：{{ unitId }}</h2>
 
-    <v-alert
-      v-if="error"
-      type="error"
-      class="mb-4"
-    >{{ error }}</v-alert>
+    <v-alert v-if="error" type="error" class="mb-4">
+      {{ error }}
+    </v-alert>
 
-    <v-progress-circular
-      v-if="loading"
-      indeterminate
-      color="primary"
-    />
+    <v-progress-circular v-if="loading" indeterminate color="primary" />
 
     <v-table v-else class="elevation-1">
       <thead>
@@ -36,12 +30,13 @@
           <td>{{ r.subcategory }}</td>
           <td>
             <div>{{ r.description }}</div>
-            <img
-              v-if="r.photo1"
-              :src="getImageUrl(r.photo1)"
-              alt="缺失照片"
-              style="max-width: 100px; margin-top: 8px; border: 1px solid #ccc;"
-            />
+            <div v-if="r.photo1">
+              <img
+                :src="transformDriveUrl(r.photo1)"
+                alt="缺失照片"
+                style="max-width: 150px; margin-top: 8px; border: 1px solid #ccc;"
+              />
+            </div>
           </td>
         </tr>
       </tbody>
@@ -60,14 +55,6 @@ const token = route.query.t;
 const records = ref([]);
 const loading = ref(true);
 const error = ref('');
-
-function getImageUrl(rawUrl) {
-  const match = rawUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  if (match && match[1]) {
-    return `https://drive.google.com/uc?export=view&id=${match[1]}`;
-  }
-  return '';
-}
 
 onMounted(async () => {
   if (!unitId || !token) {
@@ -98,6 +85,11 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+
+function transformDriveUrl(originalUrl) {
+  const match = originalUrl.match(/\/d\/([a-zA-Z0-9_-]+)\//);
+  return match ? `https://drive.google.com/uc?export=view&id=${match[1]}` : '';
+}
 </script>
 
 <style scoped>
