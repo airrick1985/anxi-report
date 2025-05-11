@@ -7,62 +7,49 @@
       <v-progress-circular indeterminate color="primary" />
     </div>
 
-    <v-table v-else-if="records.length > 0" class="elevation-1">
-      <thead>
-        <tr>
-          <th>建檔時間</th>
-          <th>驗屋日期</th>
-          <th>階段</th>
-          <th>區域</th>
-          <th>分類</th>
-          <th>細項</th>
-          <th>說明與照片</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="r in records" :key="r.key">
-          <td>{{ r.createdAt }}</td>
-          <td>{{ r.inspectionDate }}</td>
-          <td>{{ r.inspectionStage }}</td>
-          <td>{{ r.area }}</td>
-          <td>{{ r.category }}</td>
-          <td>{{ r.subcategory }}</td>
-          <td>
-            <div>{{ r.description }}</div>
-            <div class="photo-row" v-if="getRecordPhotos(r).length > 0">
-              <v-img
-                v-for="(url, idx) in getRecordPhotos(r)"
-                :key="`${r.key}-photo-${idx}`"
-                :src="url"
-                alt="缺失照片"
-                class="photo-thumb"
-                @click="zoomImage(url)"
-                @error="(e) => handleImageError(e, url, r.key, `photo${idx+1}`)"
-                @load="() => handleImageLoad(url, r.key, `photo${idx+1}`)"
-                aspect-ratio="1.2"
-                contain
-              >
-                <template #placeholder>
-                  <v-row class="fill-height ma-0" align="center" justify="center">
-                    <v-progress-circular indeterminate color="grey-lighten-2" size="32" />
-                  </v-row>
-                </template>
-                <template #error>
-                  <v-row class="fill-height ma-0 pa-1" align="center" justify="center" style="background-color: rgba(255,0,0,0.1);">
-                    <v-icon color="red-darken-2" size="small">mdi-alert-circle-outline</v-icon>
-                    <span style="font-size:9px; color: red; margin-left: 4px; line-height:1.1;">無法載入</span>
-                  </v-row>
-                </template>
-              </v-img>
-            </div>
-            <div v-else-if="!loading && (r.photo1 || r.photo2 || r.photo3 || r.photo4)" class="no-photos-debug">
-              原始照片URL存在但未顯示
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </v-table>
-    <v-alert v-else-if="!loading && !error" type="info" class="mt-4">沒有找到相關紀錄。</v-alert>
+    <div v-else-if="records.length > 0" class="record-list">
+      <v-card v-for="r in records" :key="r.key" class="mb-4 pa-4" elevation="2">
+        <div class="info-group">
+          <div><strong>建檔時間：</strong>{{ r.createdAt }}</div>
+          <div><strong>驗屋日期：</strong>{{ r.inspectionDate }}</div>
+          <div><strong>階段：</strong>{{ r.inspectionStage }}</div>
+          <div><strong>區域：</strong>{{ r.area }}</div>
+          <div><strong>分類：</strong>{{ r.category }}</div>
+          <div><strong>細項：</strong>{{ r.subcategory }}</div>
+          <div><strong>說明：</strong>{{ r.description }}</div>
+        </div>
+
+        <v-divider class="my-3"></v-divider>
+
+        <div class="photo-grid">
+          <v-img
+            v-for="(url, idx) in getRecordPhotos(r)"
+            :key="`${r.key}-photo-${idx}`"
+            :src="url"
+            class="photo-thumb"
+            :alt="`缺失照片${idx + 1}`"
+            @click="zoomImage(url)"
+            @error="(e) => handleImageError(e, url, r.key, `photo${idx+1}`)"
+            @load="() => handleImageLoad(url, r.key, `photo${idx+1}`)"
+            contain
+          >
+            <template #placeholder>
+              <v-row class="fill-height ma-0" align="center" justify="center">
+                <v-progress-circular indeterminate color="grey-lighten-2" size="32" />
+              </v-row>
+            </template>
+            <template #error>
+              <v-row class="fill-height ma-0" align="center" justify="center" style="background-color: rgba(255,0,0,0.1);">
+                <v-icon color="red-darken-2" size="small">mdi-alert-circle-outline</v-icon>
+                <span class="ml-2 red--text">無法載入</span>
+              </v-row>
+            </template>
+          </v-img>
+        </div>
+      </v-card>
+    </div>
+
+    <v-alert v-else type="info" class="mt-4">沒有找到相關紀錄。</v-alert>
 
     <v-dialog v-model="zoomDialog" max-width="90vw" transition="dialog-bottom-transition">
       <v-card>
@@ -72,19 +59,7 @@
           <v-btn icon="mdi-close" @click="zoomDialog = false"></v-btn>
         </v-toolbar>
         <v-card-text class="pa-2 d-flex justify-center align-center" style="min-height: 50vh;">
-          <v-img :src="zoomUrl" max-height="80vh" contain @error="zoomImageError">
-            <template #placeholder>
-              <v-row class="fill-height ma-0" align="center" justify="center">
-                <v-progress-circular indeterminate color="grey-lighten-2" size="64" />
-              </v-row>
-            </template>
-            <template #error>
-              <v-row class="fill-height ma-0" align="center" justify="center" style="background-color: rgba(0,0,0,0.1);">
-                <v-icon color="red" size="x-large">mdi-image-off-outline</v-icon>
-                <p class="mt-2 red--text text--darken-2">放大圖片載入失敗</p>
-              </v-row>
-            </template>
-          </v-img>
+          <v-img :src="zoomUrl" max-height="80vh" contain />
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -102,38 +77,28 @@ const token = route.query.t;
 const records = ref([]);
 const loading = ref(true);
 const error = ref('');
-
 const zoomDialog = ref(false);
 const zoomUrl = ref('');
 
 function getRecordPhotos(record) {
   const urls = [record.photo1, record.photo2, record.photo3, record.photo4];
-  return urls.map((url) => {
-    const m = url?.match(/\/d\/([a-zA-Z0-9_-]+)/) || url?.match(/id=([a-zA-Z0-9_-]+)/);
-    return m ? `https://lh3.googleusercontent.com/d/${m[1]}=w800` : '';
-  }).filter(Boolean);
+  return urls
+    .map((url) => {
+      const m = url?.match(/\/d\/([a-zA-Z0-9_-]+)/) || url?.match(/id=([a-zA-Z0-9_-]+)/);
+      return m ? `https://lh3.googleusercontent.com/d/${m[1]}=w800` : '';
+    })
+    .filter(Boolean);
 }
 
 function zoomImage(url) {
-  if (!url) {
-    console.warn("ZoomImage called with empty/invalid URL:", url);
-    error.value = "無法放大無效的圖片連結。";
-    return;
-  }
   zoomUrl.value = url;
   zoomDialog.value = true;
 }
-
-function zoomImageError() {
-  console.error("❌ 放大圖片載入失敗:", zoomUrl.value);
+function handleImageError(e, url, key, field) {
+  console.error('❌ 圖片載入失敗:', url, key, field);
 }
-
-function handleImageError(event, url, recordKey, photoField) {
-  console.error(`❌ 圖片載入失敗: Key=${recordKey}, Field=${photoField}, URL=${url}`, event);
-}
-
-function handleImageLoad(url, recordKey, photoField) {
-  console.log(`✅ 圖片成功載入: Key=${recordKey}, Field=${photoField}, URL=${url}`);
+function handleImageLoad(url, key, field) {
+  console.log('✅ 圖片成功載入:', url);
 }
 
 onMounted(async () => {
@@ -142,31 +107,24 @@ onMounted(async () => {
     loading.value = false;
     return;
   }
-  loading.value = true;
-  error.value = '';
-  records.value = [];
-
   try {
-    const response = await fetch('https://vercel-proxy-api2.vercel.app/api/inspection', {
+    const res = await fetch('https://vercel-proxy-api2.vercel.app/api/inspection', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'get_shared_inspection_records', unitId, token })
+      body: JSON.stringify({
+        action: 'get_shared_inspection_records',
+        unitId,
+        token
+      })
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API 請求失敗: ${response.status} ${response.statusText}. 回應內容: ${errorText}`);
-    }
-
-    const json = await response.json();
+    const json = await res.json();
     if (json.status === 'success') {
       records.value = json.records || [];
     } else {
-      error.value = json.message || '讀取資料失敗';
+      error.value = json.message || '讀取失敗';
     }
   } catch (e) {
-    console.error('API 呼叫失敗:', e);
-    error.value = '伺服器連線或資料處理失敗：' + e.message;
+    error.value = '讀取資料時出現錯誤：' + e.message;
   } finally {
     loading.value = false;
   }
@@ -174,50 +132,32 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-th {
-  font-weight: bold;
-  background-color: #f8f8f8;
-  text-align: left;
-  padding: 10px 8px;
+.info-group {
   font-size: 14px;
+  line-height: 1.6;
 }
-td {
-  padding: 10px 8px;
-  vertical-align: top;
-  font-size: 14px;
-  border-bottom: 1px solid #eee;
-}
-.photo-row {
-  margin-top: 8px;
+.photo-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
+  margin-top: 12px;
 }
 .photo-thumb {
-  width: 100px;
-  height: 80px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  cursor: zoom-in;
-  background-color: #f0f0f0;
-  object-fit: contain;
+  width: 120px;
+  height: 90px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  cursor: pointer;
 }
 @media (max-width: 600px) {
+  .photo-grid {
+    flex-direction: column;
+  }
   .photo-thumb {
     width: 100%;
     height: auto;
     max-height: 180px;
+    object-fit: contain;
   }
-  .photo-row {
-    flex-direction: column;
-  }
-}
-.no-photos-debug {
-  font-size: 10px;
-  color: orange;
-  margin-top: 5px;
-}
-.v-toolbar-title {
-  font-size: 1.1rem;
 }
 </style>
