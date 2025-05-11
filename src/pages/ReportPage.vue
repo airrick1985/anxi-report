@@ -2,9 +2,17 @@
   <v-container class="py-6">
     <h2 class="text-h5 mb-4">戶別：{{ unitId }}</h2>
 
-    <v-alert v-if="error" type="error" class="mb-4">{{ error }}</v-alert>
+    <v-alert
+      v-if="error"
+      type="error"
+      class="mb-4"
+    >{{ error }}</v-alert>
 
-    <v-progress-circular v-if="loading" indeterminate color="primary" />
+    <v-progress-circular
+      v-if="loading"
+      indeterminate
+      color="primary"
+    />
 
     <v-table v-else class="elevation-1">
       <thead>
@@ -28,26 +36,16 @@
           <td>{{ r.subcategory }}</td>
           <td>
             <div>{{ r.description }}</div>
-            <div class="photo-row" v-if="r.photos && r.photos.length">
-              <img
-                v-for="(photo, idx) in r.photos"
-                :key="idx"
-                :src="photo"
-                @click="viewPhoto(photo)"
-                class="thumb"
-              />
-            </div>
+            <img
+              v-if="r.photo1"
+              :src="getImageUrl(r.photo1)"
+              alt="缺失照片"
+              style="max-width: 100px; margin-top: 8px; border: 1px solid #ccc;"
+            />
           </td>
         </tr>
       </tbody>
     </v-table>
-
-    <!-- 放大預覽 -->
-    <v-dialog v-model="zoomDialog" max-width="800">
-      <v-card>
-        <v-img :src="zoomPhoto" contain />
-      </v-card>
-    </v-dialog>
   </v-container>
 </template>
 
@@ -62,12 +60,13 @@ const token = route.query.t;
 const records = ref([]);
 const loading = ref(true);
 const error = ref('');
-const zoomDialog = ref(false);
-const zoomPhoto = ref('');
 
-function viewPhoto(url) {
-  zoomPhoto.value = url;
-  zoomDialog.value = true;
+function getImageUrl(rawUrl) {
+  const match = rawUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (match && match[1]) {
+    return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+  }
+  return '';
 }
 
 onMounted(async () => {
@@ -89,10 +88,7 @@ onMounted(async () => {
     });
     const json = await res.json();
     if (json.status === 'success') {
-      records.value = (json.records || []).map(r => ({
-        ...r,
-        photos: [r.photo1, r.photo2, r.photo3, r.photo4].filter(Boolean)
-      }));
+      records.value = json.records || [];
     } else {
       error.value = json.message || '讀取失敗';
     }
@@ -116,19 +112,5 @@ td {
   vertical-align: top;
   font-size: 14px;
   border-bottom: 1px solid #eee;
-}
-.photo-row {
-  margin-top: 6px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.thumb {
-  width: 80px;
-  height: 80px;
-  object-fit: cover;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  cursor: pointer;
 }
 </style>
