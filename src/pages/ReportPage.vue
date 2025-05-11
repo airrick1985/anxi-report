@@ -79,9 +79,12 @@ function zoomImage(url) {
 
 function transformDriveUrl(originalUrl) {
   if (!originalUrl) return '';
-  const match = originalUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-  return match ? `https://drive.google.com/uc?export=view&id=${match[1]}` : '';
+  const fileMatch = originalUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  const openMatch = originalUrl.match(/id=([a-zA-Z0-9_-]+)/);
+  const id = fileMatch?.[1] || openMatch?.[1];
+  return id ? `https://drive.google.com/uc?export=view&id=${id}` : '';
 }
+
 
 onMounted(async () => {
   if (!unitId || !token) {
