@@ -1,6 +1,9 @@
 <template>
   <v-container class="py-6">
-    <h2 class="text-h5 mb-4">戶別：{{ unitId }}</h2>
+ <h2 class="text-h5 sticky-title d-flex justify-space-between align-center">
+  戶別：{{ unitId }}
+  <v-btn color="primary" size="small" @click="openConfirmDialog">點擊確認</v-btn>
+</h2>
 
     <v-alert v-if="error" type="error" class="mb-4" closable>{{ error }}</v-alert>
     <div v-if="loading" class="text-center pa-4">
@@ -64,11 +67,65 @@
       </v-card>
     </v-dialog>
   </v-container>
+
+  <!-- ✅ 確認驗屋資料 Dialog -->
+<v-dialog v-model="confirmDialog" max-width="500px">
+  <v-card>
+    <v-card-title>確認驗屋資料</v-card-title>
+    <v-card-text>
+      <v-text-field label="戶別" v-model="confirmForm.unit" readonly />
+      <v-text-field label="產權人" v-model="confirmForm.owner" readonly />
+      <v-text-field label="電話" v-model="confirmForm.phone" required />
+      <v-text-field label="EMAIL" v-model="confirmForm.email" required />
+      <v-checkbox
+        v-model="confirmForm.agree"
+        label="本人確認已詳閱本次驗屋紀錄，並同意於後續複驗時，以本紀錄作為判斷依據。"
+        required
+      />
+      <v-btn
+        color="secondary"
+        @click="openSignaturePad"
+        :disabled="!confirmForm.phone || !confirmForm.email || !confirmForm.agree"
+      >
+        點擊簽名
+      </v-btn>
+
+      <div v-if="signatureImage" class="mt-4">
+        <p>簽名預覽：</p>
+        <img :src="signatureImage" style="max-width: 100%; border: 1px solid #ccc;" />
+      </div>
+    </v-card-text>
+    <v-card-actions>
+      <v-spacer />
+      <v-btn text @click="confirmDialog = false">取消</v-btn>
+      <v-btn
+        color="primary"
+        @click="submitConfirmation"
+        :disabled="!signatureImage"
+      >送出</v-btn>
+    </v-card-actions>
+  </v-card>
+</v-dialog>
+
+<!-- ✅ 簽名板 Dialog -->
+<v-dialog v-model="signatureDialog" max-width="600">
+  <SignaturePad
+    v-model="signatureDialog"
+    @done="onSignatureDone"
+    @cancel="signatureDialog = false"
+  />
+</v-dialog>
+
+<v-overlay :model-value="confirmLoading" persistent class="d-flex align-center justify-center">
+  <v-progress-circular color="primary" indeterminate size="64" />
+</v-overlay>
+
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, reactive, onMounted, toRaw } from 'vue';
 import { useRoute } from 'vue-router';
+import SignaturePad from '@/components/SignaturePad.vue';
 
 const route = useRoute();
 const unitId = route.query.u;
@@ -79,6 +136,20 @@ const loading = ref(true);
 const error = ref('');
 const zoomDialog = ref(false);
 const zoomUrl = ref('');
+
+const confirmDialog = ref(false);
+const signatureDialog = ref(false);
+const confirmLoading = ref(false);
+
+const confirmForm = reactive({
+  unit: '',
+  owner: '',
+  phone: '',
+  email: '',
+  agree: false
+});
+
+const signatureImage = ref(null);
 
 function getRecordPhotos(record) {
   const urls = [record.photo1, record.photo2, record.photo3, record.photo4];
@@ -99,6 +170,105 @@ function handleImageError(e, url, key, field) {
 }
 function handleImageLoad(url, key, field) {
   console.log('✅ 圖片成功載入:', url);
+}
+
+async function openConfirmDialog() {
+  confirmLoading.value = true;
+  try {
+    const res = await fetch('https://vercel-proxy-api2.vercel.app/api/metadata', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'get_house_detail',
+        unitId,
+        token: 'anxi111003'
+      })
+    });
+    const json = await res.json();
+    const data = json.data || {};
+
+    confirmForm.unit = unitId;
+    confirmForm.owner = data.owner || '';
+    confirmForm.phone = data.phone || '';
+    confirmForm.email = data.email || '';
+    confirmForm.agree = false;
+    signatureImage.value = null;
+    confirmDialog.value = true;
+  } catch (e) {
+    error.value = '讀取戶別資料失敗：' + e.message;
+  } finally {
+    confirmLoading.value = false;
+  }
+}
+
+
+
+function openSignaturePad() {
+  signatureDialog.value = true;
+}
+
+function onSignatureDone(dataUrl) {
+  signatureImage.value = dataUrl;
+  signatureDialog.value = false;
+}
+
+// ReportPage.vue 中的 methods 加入此函式：
+
+async function submitConfirmation() {
+  if (!signatureImage.value) return;
+  confirmLoading.value = true;
+
+  try {
+    // 1️⃣ 上傳簽名圖檔至 Drive
+    const base64 = signatureImage.value.split(',')[1];
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const filename = `${confirmForm.unit}_${confirmForm.owner}_${yyyy}-${mm}-${dd}.png`;
+
+    const uploadRes = await fetch('https://vercel-proxy-api2.vercel.app/api/inspection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'upload_signature',
+        token: 'anxi111003',
+        filename,
+        base64
+      })
+    });
+
+    const uploadJson = await uploadRes.json();
+    if (uploadJson.status !== 'success') throw new Error('簽名圖檔上傳失敗');
+
+    const fileUrl = uploadJson.url;
+
+    // 2️⃣ 呼叫 confirm_inspection API 寫入資料
+    const confirmRes = await fetch('https://vercel-proxy-api2.vercel.app/api/inspection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'confirm_inspection',
+        token: 'anxi111003',
+        unitId: confirmForm.unit,
+        owner: confirmForm.owner,
+        phone: confirmForm.phone,
+        email: confirmForm.email,
+        signatureUrl: fileUrl
+      })
+    });
+
+    const confirmJson = await confirmRes.json();
+    if (confirmJson.status !== 'success') throw new Error('寫入試算表失敗');
+
+    // ✅ 顯示成功提示
+    alert('確認已送出！');
+    confirmDialog.value = false;
+  } catch (e) {
+    alert('送出錯誤：' + e.message);
+  } finally {
+    confirmLoading.value = false;
+  }
 }
 
 onMounted(async () => {
@@ -128,6 +298,7 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+  
 });
 </script>
 
@@ -159,5 +330,17 @@ onMounted(async () => {
     max-height: 180px;
     object-fit: contain;
   }
+}
+.sticky-title {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #ffffff;
+  padding: 16px 20px;
+  margin: 0 -16px; /* 拉開與左右 padding 的距離，延伸滿整列 */
+  border-bottom: 1px solid #e0e0e0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  font-weight: bold;
+  font-size: 20px;
 }
 </style>
