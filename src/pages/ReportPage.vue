@@ -130,6 +130,7 @@ import SignaturePad from '@/components/SignaturePad.vue';
 const route = useRoute();
 const unitId = route.query.u;
 const token = route.query.t;
+const projectName = ref(route.query.p ? decodeURIComponent(route.query.p) : ''); // ✅ 獲取並解碼 projectName
 
 const records = ref([]);
 const loading = ref(true);
@@ -173,16 +174,23 @@ function handleImageLoad(url, key, field) {
 }
 
 async function openConfirmDialog() {
+    if (!projectName.value) {
+      error.value = '無法確定建案資訊，無法開啟確認對話框。';
+      // toast.error(error.value); // 如果你集成了 toast
+      alert(error.value); // 簡單提示
+      return;
+  }
   confirmLoading.value = true;
   try {
     const res = await fetch('https://vercel-proxy-api2.vercel.app/api/metadata', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'get_house_detail',
-        unitId,
-        token: 'anxi111003'
-      })
+     body: JSON.stringify({
+    action: 'get_house_detail',
+    unitId,
+    projectName: projectName.value, 
+    token: 'anxi111003'
+  })
     });
     const json = await res.json();
     const data = json.data || {};
@@ -215,6 +223,11 @@ function onSignatureDone(dataUrl) {
 // ReportPage.vue 中的 methods 加入此函式：
 
 async function submitConfirmation() {
+   if (!projectName.value) {
+      alert('錯誤：無法確定建案資訊，無法送出確認。');
+      return;
+  }
+
   if (!signatureImage.value) return;
   confirmLoading.value = true;
 
@@ -234,7 +247,8 @@ async function submitConfirmation() {
         action: 'upload_signature',
         token: 'anxi111003',
         filename,
-        base64
+        base64,
+        projectName: projectName.value
       })
     });
 
@@ -254,7 +268,8 @@ async function submitConfirmation() {
         owner: confirmForm.owner,
         phone: confirmForm.phone,
         email: confirmForm.email,
-        signatureUrl: fileUrl
+        signatureUrl: fileUrl,
+        projectName: projectName.value
       })
     });
 
@@ -272,7 +287,7 @@ async function submitConfirmation() {
 }
 
 onMounted(async () => {
-  if (!unitId || !token) {
+  if (!unitId || !token || !projectName.value) {
     error.value = '缺少必要參數 (戶別或 token)。';
     loading.value = false;
     return;
@@ -284,7 +299,8 @@ onMounted(async () => {
       body: JSON.stringify({
         action: 'get_shared_inspection_records',
         unitId,
-        token
+        token,
+        projectName: projectName.value 
       })
     });
     const json = await res.json();
